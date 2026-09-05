@@ -3,8 +3,6 @@ import requests
 
 
 main_api = "https://mapquestapi.com/directions/v2/route?"
-key = "EGVIJZBu6OlzjazQolRueK1VFVfoi30D"
-
 
 while True:
 
