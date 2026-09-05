@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Route Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F1ECE4;
+    --ink: #20262B;
+    --route: #B5432A;
+    --hairline: #C7BFAE;
+    --sage: #6B7A6C;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Source Serif 4', Georgia, serif;
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 56px 24px 80px;
+    line-height: 1.5;
+  }
+
+  .masthead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+  }
+
+  .masthead h1 { font-size: 1.5rem; font-weight: 700; margin: 0; letter-spacing: 0.01em; }
+  .masthead .today { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--sage); }
+
+  .tagline { color: var(--sage); font-style: italic; font-size: 0.95rem; margin: 0 0 36px; }
+
+  form { display: grid; gap: 18px; margin-bottom: 44px; }
+
+  .field {
+    display: grid;
+    grid-template-columns: 108px 1fr;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid var(--hairline);
+    padding-bottom: 10px;
+  }
+
+  .field label { font-size: 0.95rem; color: var(--sage); }
+
+  .field input,
+  .field select {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 1.05rem;
+    color: var(--ink);
+    background: transparent;
+    border: none;
+    padding: 2px 0;
+    width: 100%;
+  }
+
+  .field input:focus,
+  .field select:focus { outline: none; border-bottom: 1px solid var(--route); }
+  .field input::placeholder { color: #A79E8C; font-style: italic; }
+
+  .go {
+    justify-self: start;
+    background: none;
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    padding: 10px 22px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .go:hover { background: var(--ink); color: var(--paper); }
+  .go:disabled { opacity: 0.5; cursor: default; }
+
+  .error {
+    border-left: 3px solid var(--route);
+    padding: 4px 0 4px 16px;
+    color: var(--route);
+    font-size: 0.95rem;
+    margin-bottom: 30px;
+  }
+
+  .summary { margin-bottom: 8px; }
+  .summary h2 { font-size: 1.15rem; font-weight: 600; margin: 0 0 4px; }
+  .summary .via { color: var(--sage); font-size: 0.9rem; margin-bottom: 18px; }
+
+  .stats {
+    display: flex;
+    gap: 28px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+
+  .stats div span { display: block; color: var(--sage); font-size: 0.7rem; margin-bottom: 3px; }
+  .stats div b { font-weight: 500; font-size: 1rem; color: var(--ink); }
+
+  .trip { position: relative; padding-left: 26px; border-left: 2px solid var(--route); }
+  .stop { position: relative; padding-bottom: 22px; }
+
+  .stop::before {
+    content: "";
+    position: absolute;
+    left: -32px;
+    top: 6px;
+    width: 8px;
+    height: 8px;
+    background: var(--route);
+    border-radius: 50%;
+  }
+
+  .stop .narrative { font-size: 1rem; }
+  .stop .km {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--sage);
+    margin-top: 3px;
+  }
+
+  footer {
+    margin-top: 50px;
+    border-top: 1px solid var(--hairline);
+    padding-top: 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--sage);
+  }
+</style>
+</head>
+<body>
+
+  <div class="masthead">
+    <h1>Route Log</h1>
+    <span class="today">via mapquest</span>
+  </div>
+  <p class="tagline">Two points, one line.</p>
+
+  <form id="route-form">
+    <div class="field">
+      <label for="orig">From</label>
+      <input type="text" id="orig" name="orig" placeholder="Starting location" required>
+    </div>
+    <div class="field">
+      <label for="dest">To</label>
+      <input type="text" id="dest" name="dest" placeholder="Destination" required>
+    </div>
+    <div class="field">
+      <label for="routeType">Mode</label>
+      <select id="routeType" name="routeType">
+        <option value="fastest" selected>fastest</option>
+        <option value="shortest">shortest</option>
+        <option value="pedestrian">pedestrian</option>
+        <option value="bicycle">bicycle</option>
+      </select>
+    </div>
+    <button class="go" type="submit">Plot route</button>
+  </form>
+
+  <div id="result"></div>
+
+  <footer>directions data &mdash; mapquest directions api</footer>
+
+  <script>
+    const form = document.getElementById('route-form');
+    const resultEl = document.getElementById('result');
+    const goButton = form.querySelector('.go');
+
+    function renderError(message) {
+      resultEl.innerHTML = `<div class="error"></div>`;
+      resultEl.querySelector('.error').textContent = message;
+    }
+
+    function renderResult(data) {
+      const stops = data.maneuvers.map(m => `
+        <div class="stop">
+          <div class="narrative"></div>
+          <span class="km">${m.km} km</span>
+        </div>
+      `).join('');
+
+      resultEl.innerHTML = `
+        <div class="summary">
+          <h2></h2>
+          <div class="via"></div>
+        </div>
+        <div class="stats">
+          <div><span>duration</span><b></b></div>
+          <div><span>distance</span><b></b></div>
+          <div><span>fuel</span><b></b></div>
+        </div>
+        <div class="trip">${stops}</div>
+      `;
+
+      resultEl.querySelector('.summary h2').textContent = `${data.orig} \u2192 ${data.dest}`;
+      resultEl.querySelector('.summary .via').textContent = `${data.route_type} route`;
+
+      const statValues = resultEl.querySelectorAll('.stats b');
+      statValues[0].textContent = data.duration;
+      statValues[1].textContent = `${data.miles} mi`;
+      statValues[2].textContent = `${data.fuel} gal`;
+
+      resultEl.querySelectorAll('.trip .narrative').forEach((el, i) => {
+        el.textContent = data.maneuvers[i].narrative;
+      });
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      goButton.disabled = true;
+      goButton.textContent = 'Plotting…';
+      resultEl.innerHTML = '';
+
+      try {
+        const res = await fetch('/api/route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orig: document.getElementById('orig').value,
+            dest: document.getElementById('dest').value,
+            routeType: document.getElementById('routeType').value,
+          }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          renderError(data.error);
+        } else {
+          renderResult(data);
+        }
+      } catch (err) {
+        renderError('Could not reach the server. Is the app running?');
+      } finally {
+        goButton.disabled = false;
+        goButton.textContent = 'Plot route';
+      }
+    });
+  </script>
+
+</body>
+</html>
