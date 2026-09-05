@@ -5,25 +5,32 @@ import os
 main_api = "https://mapquestapi.com/directions/v2/route?"
 key = os.getenv("MAPQUEST_API_KEY")
 
-
 while True:
     orig = input("Starting Location: ")
     if orig == "quit" or orig == "q":
         break
-
     dest = input("Destination: ")
     if dest == "q" or dest == "quit":
         break
 
-    url = main_api + urllib.parse.urlencode({"key":key, "from":orig, "to":dest})
+    print("\nRoute Type Options: fastest, shortest, pedestrian, bicycle")
+    routeType = input("Route Type (press Enter for fastest): ").strip().lower()
+
+    valid_route_types = ["fastest", "shortest", "pedestrian", "bicycle"]
+    if routeType == "":
+        routeType = "fastest"
+    elif routeType not in valid_route_types:
+        print(f"'{routeType}' is not a valid option. Defaulting to 'fastest'.\n")
+        routeType = "fastest"
+
+    url = main_api + urllib.parse.urlencode({"key":key, "from":orig, "to":dest, "routeType":routeType})
     print("URL: " + (url))
     json_data = requests.get(url).json()
     json_status = json_data["info"]["statuscode"]
-
     if json_status == 0:
         print("API Status: " + str(json_status) + " = A successful route call.\n")
         print("=============================================")
-        print("Directions from " + (orig) + " to " + (dest))
+        print("Directions from " + (orig) + " to " + (dest) + " (" + routeType + " route)")
         print("Trip Duration:   " + (json_data["route"]["formattedTime"]))
         print("Miles:           " + str(json_data["route"]["distance"]))
         print("Fuel Used (Gal): " + str(json_data["route"].get("fuelUsed", "N/A")))
