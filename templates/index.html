@@ -52,6 +52,8 @@
     padding-bottom: 10px;
   }
 
+  .field.with-swap { grid-template-columns: 108px 1fr auto; }
+
   .field label { font-size: 0.95rem; color: var(--sage); }
 
   .field input,
@@ -68,6 +70,20 @@
   .field input:focus,
   .field select:focus { outline: none; border-bottom: 1px solid var(--route); }
   .field input::placeholder { color: #A79E8C; font-style: italic; }
+
+  .swap-btn {
+    background: none;
+    border: 1px solid var(--hairline);
+    color: var(--sage);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .swap-btn:hover { border-color: var(--route); color: var(--route); }
 
   .go {
     justify-self: start;
@@ -98,15 +114,44 @@
 
   .stats {
     display: flex;
-    gap: 28px;
+    gap: 48px;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.85rem;
     margin-bottom: 32px;
     flex-wrap: wrap;
   }
 
-  .stats div span { display: block; color: var(--sage); font-size: 0.7rem; margin-bottom: 3px; }
+  .stats div { min-width: 90px; }
+  .stats div span { display: block; color: var(--sage); font-size: 0.7rem; margin-bottom: 5px; }
   .stats div b { font-weight: 500; font-size: 1rem; color: var(--ink); }
+
+  .map-frame {
+    border: 1px solid var(--ink);
+    margin-bottom: 32px;
+    overflow: hidden;
+    line-height: 0;
+    min-height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .map-frame img {
+    display: block;
+    width: 100%;
+    height: auto;
+    filter: sepia(20%) saturate(65%) contrast(96%);
+  }
+
+  .map-frame.loading::after {
+    content: "loading map\2026";
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--sage);
+    line-height: normal;
+  }
+
+  .map-frame.failed { display: none; }
 
   .trip { position: relative; padding-left: 26px; border-left: 2px solid var(--route); }
   .stop { position: relative; padding-bottom: 22px; }
@@ -139,6 +184,22 @@
     font-size: 0.7rem;
     color: var(--sage);
   }
+
+  @media (max-width: 480px) {
+    body { padding: 32px 18px 60px; }
+
+    .field,
+    .field.with-swap {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+
+    .field label { font-size: 0.8rem; }
+
+    .swap-btn { justify-self: start; margin-top: 4px; }
+
+    .stats { gap: 24px; }
+  }
 </style>
 </head>
 <body>
@@ -154,9 +215,10 @@
       <label for="orig">From</label>
       <input type="text" id="orig" name="orig" placeholder="Starting location" required>
     </div>
-    <div class="field">
+    <div class="field with-swap">
       <label for="dest">To</label>
       <input type="text" id="dest" name="dest" placeholder="Destination" required>
+      <button type="button" class="swap-btn" id="swap-btn" title="Swap from/to" aria-label="Swap starting location and destination">&#8646;</button>
     </div>
     <div class="field">
       <label for="routeType">Mode</label>
@@ -178,6 +240,22 @@
     const form = document.getElementById('route-form');
     const resultEl = document.getElementById('result');
     const goButton = form.querySelector('.go');
+    const origInput = document.getElementById('orig');
+    const destInput = document.getElementById('dest');
+    const routeTypeSelect = document.getElementById('routeType');
+    const swapBtn = document.getElementById('swap-btn');
+
+    // Prefill from URL params, e.g. ?orig=Manila&dest=Quezon+City&routeType=fastest
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('orig')) origInput.value = params.get('orig');
+    if (params.get('dest')) destInput.value = params.get('dest');
+    if (params.get('routeType')) routeTypeSelect.value = params.get('routeType');
+
+    swapBtn.addEventListener('click', () => {
+      const tmp = origInput.value;
+      origInput.value = destInput.value;
+      destInput.value = tmp;
+    });
 
     function renderError(message) {
       resultEl.innerHTML = `<div class="error"></div>`;
@@ -192,15 +270,22 @@
         </div>
       `).join('');
 
+      const hasFuel = data.fuel !== null && data.fuel !== undefined;
+      const fuelLabel = data.fuel_is_estimate ? 'fuel (est.)' : 'fuel';
+      const fuelStat = hasFuel ? `<div><span>${fuelLabel}</span><b></b></div>` : '';
+
       resultEl.innerHTML = `
         <div class="summary">
           <h2></h2>
           <div class="via"></div>
         </div>
+        <div class="map-frame loading" id="map-frame">
+          <img id="map-img" alt="Map of route from ${data.orig} to ${data.dest}">
+        </div>
         <div class="stats">
           <div><span>duration</span><b></b></div>
           <div><span>distance</span><b></b></div>
-          <div><span>fuel</span><b></b></div>
+          ${fuelStat}
         </div>
         <div class="trip">${stops}</div>
       `;
@@ -211,11 +296,17 @@
       const statValues = resultEl.querySelectorAll('.stats b');
       statValues[0].textContent = data.duration;
       statValues[1].textContent = `${data.miles} mi`;
-      statValues[2].textContent = `${data.fuel} gal`;
+      if (hasFuel) statValues[2].textContent = `${data.fuel} gal`;
 
       resultEl.querySelectorAll('.trip .narrative').forEach((el, i) => {
         el.textContent = data.maneuvers[i].narrative;
       });
+
+      const mapFrame = document.getElementById('map-frame');
+      const mapImg = document.getElementById('map-img');
+      mapImg.addEventListener('load', () => mapFrame.classList.remove('loading'));
+      mapImg.addEventListener('error', () => mapFrame.classList.add('failed'));
+      mapImg.src = `/api/staticmap?orig=${encodeURIComponent(data.orig)}&dest=${encodeURIComponent(data.dest)}`;
     }
 
     form.addEventListener('submit', async (e) => {
@@ -224,15 +315,19 @@
       goButton.textContent = 'Plotting…';
       resultEl.innerHTML = '';
 
+      const orig = origInput.value;
+      const dest = destInput.value;
+      const routeType = routeTypeSelect.value;
+
+      // Make the search shareable/bookmarkable via URL params
+      const newParams = new URLSearchParams({ orig, dest, routeType });
+      window.history.replaceState(null, '', `?${newParams.toString()}`);
+
       try {
         const res = await fetch('/api/route', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orig: document.getElementById('orig').value,
-            dest: document.getElementById('dest').value,
-            routeType: document.getElementById('routeType').value,
-          }),
+          body: JSON.stringify({ orig, dest, routeType }),
         });
         const data = await res.json();
         if (data.error) {
@@ -247,6 +342,11 @@
         goButton.textContent = 'Plot route';
       }
     });
+
+    // If the page loaded with orig/dest already filled in from the URL, plot immediately
+    if (params.get('orig') && params.get('dest')) {
+      form.requestSubmit();
+    }
   </script>
 
 </body>
