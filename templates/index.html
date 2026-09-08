@@ -306,7 +306,9 @@
       const mapImg = document.getElementById('map-img');
       mapImg.addEventListener('load', () => mapFrame.classList.remove('loading'));
       mapImg.addEventListener('error', () => mapFrame.classList.add('failed'));
-      mapImg.src = `/api/staticmap?orig=${encodeURIComponent(data.orig)}&dest=${encodeURIComponent(data.dest)}`;
+      const mapParams = new URLSearchParams({ orig: data.orig, dest: data.dest });
+      if (data.session_id) mapParams.set('session', data.session_id);
+      mapImg.src = `/api/staticmap?${mapParams.toString()}`;
     }
 
     form.addEventListener('submit', async (e) => {

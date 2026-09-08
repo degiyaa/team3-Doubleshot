@@ -67,6 +67,7 @@ def get_route(orig, dest, route_type):
             "fuel": fuel,
             "fuel_is_estimate": fuel_is_estimate,
             "maneuvers": maneuvers,
+            "session_id": route.get("sessionId"),
         }
     elif status == 402:
         return {"error": f"Status {status}: Invalid user inputs for one or both locations."}
@@ -102,24 +103,33 @@ def api_route():
 
 @app.route("/api/staticmap")
 def api_staticmap():
-    """Proxy a MapQuest Static Map image so the API key never reaches the browser."""
+    """Proxy a MapQuest Static Map image so the API key never reaches the browser.
+
+    Prefers rendering the exact computed route via `session` (matches the
+    chosen routeType — fastest/shortest/pedestrian/bicycle). Falls back to a
+    generic start/end route if no session is available or it has expired.
+    """
+    session_id = (request.args.get("session") or "").strip()
     orig = (request.args.get("orig") or "").strip()
     dest = (request.args.get("dest") or "").strip()
 
-    if not orig or not dest:
-        return "Missing orig/dest", 400
+    if not session_id and (not orig or not dest):
+        return "Missing session or orig/dest", 400
     if not KEY:
         return "Server is missing MAPQUEST_API_KEY.", 500
 
-    url = STATIC_MAP_API + urllib.parse.urlencode(
-        {
-            "key": KEY,
-            "start": orig,
-            "end": dest,
-            "size": "640,320@2x",
-            "type": "map",
-        }
-    )
+    params = {
+        "key": KEY,
+        "size": "640,320@2x",
+        "type": "map",
+    }
+    if session_id:
+        params["session"] = session_id
+    else:
+        params["start"] = orig
+        params["end"] = dest
+
+    url = STATIC_MAP_API + urllib.parse.urlencode(params)
 
     try:
         upstream = requests.get(url, timeout=15)
